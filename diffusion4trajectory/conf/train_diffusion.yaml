@@ -1,0 +1,16 @@
+# for transformer
+input_dim: 7
+output_dim: 7
+horizon: 200
+n_con_steps: 788
+cond_dim: 256
+map_cond: True
+n_cond_layers: 2
+
+# for diffusion
+timesteps: 10
+beta_schedule: sigmoid
+objective: pred_x0
+
+
+

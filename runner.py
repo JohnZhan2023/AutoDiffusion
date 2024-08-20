@@ -357,11 +357,19 @@ def main():
     # Initialize our Trainer
     if model_args.task == "nuplan":
         if model_args.encoder_type == "raster":
-            from transformer4planning.preprocess.nuplan_rasterize import nuplan_rasterize_collate_func
-            collate_fn = partial(nuplan_rasterize_collate_func,
-                                 dic_path=data_args.saved_dataset_folder,
-                                 all_maps_dic=all_maps_dic,
-                                 **model_args.__dict__)
+            if data_args.augmentation == "naive_augmentation":
+                from diffusion4trajectory.dataloader.nuplan_raster import nuplan_rasterize_collate_func_augmentation
+                collate_fn = partial(nuplan_rasterize_collate_func_augmentation,
+                                    augmentation="naive",
+                                        dic_path=data_args.saved_dataset_folder,
+                                        all_maps_dic=all_maps_dic,
+                                        **model_args.__dict__)
+            else:
+                from transformer4planning.preprocess.nuplan_rasterize import nuplan_rasterize_collate_func
+                collate_fn = partial(nuplan_rasterize_collate_func,
+                                    dic_path=data_args.saved_dataset_folder,
+                                    all_maps_dic=all_maps_dic,
+                                    **model_args.__dict__)
         elif model_args.encoder_type == "vector":
             from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
             from transformer4planning.preprocess.pdm_vectorize import nuplan_vector_collate_func

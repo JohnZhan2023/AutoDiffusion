@@ -1,0 +1,3 @@
+[2024-08-19 21:38:49,359][runner][INFO] - Loading dataset /cephfs/shared/nuplan/online_s6/index/train/train-index_pittsburgh
+[2024-08-19 21:38:55,086][runner][INFO] - Loading dataset /cephfs/shared/nuplan/online_s6/index/val/val14x15_index
+[2024-08-19 21:38:55,954][diffusion.transformer][INFO] - number of parameters: 1.084200e+05

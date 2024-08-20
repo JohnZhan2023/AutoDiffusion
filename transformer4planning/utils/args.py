@@ -459,6 +459,9 @@ class DataTrainingArguments:
                                         "3: cyclist on WOMD"
                                         "any combination of numbers will be decoded into list of int (1 2;2 3;1 3)"}
     )
+    augmentation: Optional[str] = field(
+        default=None, metadata={"help": "none: no augmentation"  }
+    )
 
 
 @dataclass
@@ -546,7 +549,7 @@ class PlanningTrainingArguments(TrainingArguments):
 
 
     # label_names: Optional[List[str]] = field(
-    #     default=lambda: ['trajectory_label']
+    #     default=lambda: ['raw_trajectory_label']
     # )
     # prediction_loss_only: Optional[bool] = field(
     #     default=False,

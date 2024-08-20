@@ -249,7 +249,7 @@ class STR(PreTrainedModel):
         if not return_dict:
             raise NotImplementedError('need to return dict for evaluations in trainer.py')
 
-        input_embeds, info_dict = self.encoder(is_training=self.training, **kwargs)
+        input_embeds, info_dict, _ = self.encoder(is_training=self.training, **kwargs)
         transformer_outputs = self.embedding_to_hidden(input_embeds, return_dict=return_dict)
         transformer_outputs_hidden_state = transformer_outputs['last_hidden_state']
 
@@ -622,7 +622,7 @@ class STR(PreTrainedModel):
                     # pred_key_point = torch.zeros((batch_size, 1, 2), device=device)
                     pred_key_point = key_points_logit
 
-                    off_road_checking = True
+                    off_road_checking = False
                     if off_road_checking and route_ids is not None and road_dic is not None and ego_pose is not None and map_name is not None:
                         from transformer4planning.utils import nuplan_utils
                         for sample_index in range(batch_size):
@@ -653,7 +653,7 @@ class STR(PreTrainedModel):
                                 pred_key_point[sample_index, 0, :2] = torch.tensor(pred_key_point_ego, device=pred_key_point.device)
                                 print(f'Off Road Detected! Replace {i}th key point')
 
-                    object_collision_checking = True
+                    object_collision_checking = False
                     agents_rect_local = kwargs.get('agents_rect_local', None)
                     if object_collision_checking and agents_rect_local is not None:
                         assert self.config.selected_exponential_past, 'only support selected_exponential_past for now'

@@ -1,0 +1,16 @@
+input_dim: 4
+output_dim: 4
+horizon: 200
+n_con_steps: 788
+cond_dim: 256
+map_cond: true
+n_cond_layers: 2
+timesteps: 100
+beta_schedule: sigmoid
+objective: pred_x0
+data_path: /cephfs/shared/nuplan/online_s6/index
+debug: true
+seed: 0
+max_eval_samples: 100
+max_steps: 50
+warmup_steps: 10
