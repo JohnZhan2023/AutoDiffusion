@@ -57,7 +57,7 @@ def main():
     config.map_cond = True
     config.n_cond_layers = 2
     config.timesteps = 1000
-    config.objective = "pred_noise"
+    config.objective = "pred_x0"
     config.beta_schedule = "sigmoid"
     config.use_proposal = False
     config.n_embd = 256

@@ -125,6 +125,7 @@ class DiffusionAugmentation(STR_Mixtral):
             "traj_logits": final_predict
         }
         
+        
         output_dict = LTMOutput(
             loss=x_loss,
             loss_items=loss,
