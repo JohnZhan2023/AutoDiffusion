@@ -112,10 +112,11 @@ class TrajectoryRefiner(nn.Module):
                         "transition_info": transition_info,
                         "trajectory_prior": trajectory_prior
                      }
-        traj_logits = torch.zeros_like(label)
         traj_loss = None
         
-        traj_loss = diffusion_model(condition, trajectory_label = label)
+        traj_loss, traj_logits = diffusion_model(condition, trajectory_label = label)
+        # traj_loss: (bsz, 80, 4)
+        # traj_logits: (bsz, 80, 4)
         
         traj_loss *= self.cfg.trajectory_loss_rescale
         return traj_loss, traj_logits
@@ -439,17 +440,20 @@ class DiffusionWrapper(nn.Module):
             target = noise
         elif self.objective == 'pred_x0':
             target = x_start
+            trajectory = prior["trajectory_prior"] + model_out
+            trajectory = self.unnormalize(trajectory)
         elif self.objective == 'pred_v':
             v = self.predict_v(x_start, t, noise)
             target = v
         else:
             raise ValueError(f'unknown objective {self.objective}')
 
-        loss = F.mse_loss(model_out, target, reduction = 'none')
-        loss = reduce(loss, 'b ... -> b', 'mean')
-
+        
+        
+        loss = F.mse_loss(model_out, target, reduction = 'none') # bsz 80 4
+        # loss = reduce(loss, 'b ... -> b', 'mean')
         loss = loss * extract(self.loss_weight, t, loss.shape)
-        return loss.mean()
+        return loss, trajectory
 
     def forward(self, prior, trajectory_label, get_inter=False, **kwargs):
         if self.training:

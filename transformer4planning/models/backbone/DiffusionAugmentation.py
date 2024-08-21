@@ -119,6 +119,13 @@ class DiffusionAugmentation(STR_Mixtral):
         final_predict = rearrange(final_predict, "t b fs c ... -> b (t fs) c ...", fs=self.frame_stack)
         
         loss = torch.stack(loss)
+        loss = rearrange(loss, "t b fs c -> b (t fs) c", fs=self.frame_stack)
+        
+        from transformer4planning.models.diffusion_loss.diffusion_loss import offroad_loss
+        loss = offroad_loss(final_predict, trajectory_label, loss, **kwargs)
+
+        
+        
         x_loss = loss.mean()
 
         pred_dict = {
