@@ -58,7 +58,8 @@ class Transformer(nn.Module):
         if obs_as_cond:
             if map_cond:
                 self.cond_obs_emb = nn.Linear(cond_dim, n_emb) # 256->n_emb
-            self.prior_z_emb = nn.Linear(prior_dim, n_emb) # 4->n_emb
+            self.prior_emb = nn.Linear(prior_dim, n_emb) # 4->n_emb
+            self.z_emb = nn.Linear(input_dim, n_emb) # 4->n_emb
 
         self.cond_pos_emb = None
         self.encoder = None
@@ -226,8 +227,8 @@ class Transformer(nn.Module):
         if self.obs_as_cond:
             if self.map_cond:
                 cond_obs_emb = self.cond_obs_emb(maps_info)
-            trajectory_prior = self.prior_z_emb(trajectory_prior)
-            transition_info = self.prior_z_emb(transition_info)
+            trajectory_prior = self.prior_emb(trajectory_prior)
+            transition_info = self.z_emb(transition_info)
             # (B,To,n_emb)
             if self.map_cond:
                 cond_embeddings = torch.cat([cond_embeddings, cond_obs_emb, transition_info, trajectory_prior], dim=1) 

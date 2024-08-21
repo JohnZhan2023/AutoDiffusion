@@ -391,6 +391,9 @@ class ModelArguments:
     pass_agent_dic_to_model: Optional[bool] = field(
         default=False, metadata={"help": "Whether to pass agent dic to the model"}
     )
+    hidden_prior: Optional[bool] = field(
+        default=False, metadata={"help": "Whether to use hidden prior"}
+    )
 
 
 @dataclass
@@ -546,6 +549,7 @@ class PlanningTrainingArguments(TrainingArguments):
     sim_controller: Optional[str] = field(
         default='two_stage_controller', metadata={"help": "The controller for simulation, choose from [perfect_controller, two_stage_controller]"}
     )
+    
 
 
     # label_names: Optional[List[str]] = field(

@@ -69,7 +69,7 @@ class STRConfig(PretrainedConfig):
                      "vit_intermediate_size", "mean_circular_loss",
                      "camera_image_encoder", "use_speed", "no_yaw_with_stepping", "autoregressive", "regression_long_class_short",
                      "kp_dropout", "traj_dropout", "trajectory_decoder_type", "skip_yaw_norm",
-                     "output_router_logits"]
+                     "output_router_logits", "hidden_prior"]
         for each_attr in attr_list:
             if not hasattr(self, each_attr):
                 self.__dict__[each_attr] = False
@@ -756,6 +756,9 @@ class STR(PreTrainedModel):
                 traj_logits_k.append(traj_logits)
             else:
                 raise NotImplementedError
+            
+        
+
 
         key_points_pred_logits = None
         if select_k == 1:
@@ -774,6 +777,8 @@ class STR(PreTrainedModel):
             "traj_logits": traj_pred_logits,
             "maps_info": maps_info,
         }
+        if self.config.hidden_prior:
+            pred_dict.update({"hidden_states": transformer_outputs_hidden_state[:,-80:,:]})
 
         # if kwargs.get('old_file_name', None) is not None:
         #     logger.warning('passing gt at gen next step for debugging')

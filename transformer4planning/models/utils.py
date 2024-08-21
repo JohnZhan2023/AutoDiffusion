@@ -56,10 +56,9 @@ def cat_raster_seq_for_waymo(raster, framenum=11):
 def normalize(x):
     y = torch.zeros_like(x)
     # mean(x[...,0]) = 9.517, mean(sqrt(x[...,0]**2))=9.517
-    y[..., 0] += (x[..., 0] / 25)
-    y[..., 0] -= 1.0
+    y[..., 0] += (x[..., 0]/10)
     # mean(x[..., 1]) = -0.737, mean(sqrt(x[..., 1]**2))=0.783
-    y[..., 1] += (x[..., 1] / 5)
+    y[..., 1] += (x[..., 1]/10)
     if x.shape[-1]==2:
         return y
     # mean(x[..., 2]) = 0, mean(sqrt(x[..., 2]**2)) = 0
@@ -71,8 +70,8 @@ def normalize(x):
 
 def denormalize(y):
     x = torch.zeros_like(y)
-    x[..., 0] = (y[..., 0] + 1.0) * 25
-    x[..., 1] = (y[..., 1]) * 5
+    x[..., 0] = y[..., 0] *10
+    x[..., 1] = (y[..., 1]*10) 
     if y.shape[-1]==2:
         return x
     x[..., 2] = 0

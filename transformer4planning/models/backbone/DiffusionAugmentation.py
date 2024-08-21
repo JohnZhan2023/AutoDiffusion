@@ -30,13 +30,13 @@ class DiffusionAugmentation(STR_Mixtral):
     def __init__(self, config:STRMixtralConfig):
         print("=================DiffusionAugmentation===================")
         ###########config the attribute#############
-        config.trajectory_dim=256
+        config.trajectory_dim=4
         config.explicit_trajectory_dim = 4
         config.learnable_init_traj=True
         config.optimizer_beta = [0.9, 0.999]
         config.maps_dim = 256
         config.n_maps_token = 788
-        config.prior_dim = config.trajectory_dim
+        config.prior_dim = 256
         self.cfg = config
         self.trajectory_dim = config.trajectory_dim
         self.frame_stack = config.frame_stack
@@ -90,6 +90,7 @@ class DiffusionAugmentation(STR_Mixtral):
         # Phase1: get the result from the STR model
         str_result = super().generate(**kwargs)
         trajectory_prior = str_result["traj_logits"]
+        hidden_states = str_result["hidden_states"]
         maps_info = str_result["maps_info"]
         trajectory_label = kwargs.get("trajectory_label", None)
         residual = trajectory_label - trajectory_prior
@@ -97,7 +98,7 @@ class DiffusionAugmentation(STR_Mixtral):
             trajectory_label = residual
         
         # Phase2:convey the result to the diffusion model
-        label, trajectory_prior, maps_info, init_traj = self._preprocess_batch(trajectory_prior=trajectory_prior, maps_info=maps_info, label=trajectory_label, is_train=True)
+        label, trajectory_prior, maps_info, init_traj, hidden_prior = self._preprocess_batch(trajectory_prior=trajectory_prior, maps_info=maps_info, label=trajectory_label, hidden_prior=hidden_states, is_train=True)
         n_frames, batch_size, _, *_ = label.shape
         
         final_predict = []
@@ -110,10 +111,10 @@ class DiffusionAugmentation(STR_Mixtral):
         # init_traj: (b, 40)
         self.diffusion.train()
         for t in range(0, n_frames):
-            l, prediction, z= self.diffusion(
-                label[t], transition_info, trajectory_prior[t], maps_info
+            l, prediction= self.diffusion(
+                label[t], transition_info, trajectory_prior[t], maps_info, hidden_prior[t]
             ) # (b, 10, 4)
-            transition_info = z
+            transition_info = prediction
             loss.append(l)
             final_predict.append(prediction)
         # Notice the final_predict is not the final result, it is the intermediate result
@@ -137,7 +138,7 @@ class DiffusionAugmentation(STR_Mixtral):
         )
         return output_dict
 
-    def _preprocess_batch(self, trajectory_prior, maps_info, label= None, is_train=True):
+    def _preprocess_batch(self, trajectory_prior, maps_info, hidden_prior, label= None, is_train=True):
         # trajectory_prior: (b, 80, 4)
         batch_size, n_frames = trajectory_prior.shape[:2]
         
@@ -156,11 +157,12 @@ class DiffusionAugmentation(STR_Mixtral):
         
 
         trajectory_prior = rearrange(trajectory_prior, "b (t fs) c ... -> t b fs c ...", fs=self.frame_stack)
+        hidden_prior = rearrange(hidden_prior, "b (t fs) c ... -> t b fs c ...", fs=self.frame_stack)
         
         label = rearrange(label, "b (t fs) c ... -> t b fs c ...", fs=self.frame_stack)
         
 
-        return label, trajectory_prior, maps_info, init_traj
+        return label, trajectory_prior, maps_info, init_traj, hidden_prior
     
     @torch.no_grad()
     def generate(self, **kwargs)-> torch.FloatTensor:
@@ -169,12 +171,13 @@ class DiffusionAugmentation(STR_Mixtral):
         # Phase1: get the result from the STR model
         str_result = super().generate(**kwargs)
         trajectory_prior = str_result["traj_logits"]
+        hidden_states = str_result["hidden_states"]
         maps_info = str_result["maps_info"]
         # print("trajectory_prior", trajectory_prior[0,::10])
         
         
         # Phase2:convey the result to the diffusion model
-        label, trajectory_prior, maps_info, init_traj = self._preprocess_batch(trajectory_prior=trajectory_prior, maps_info=maps_info, is_train=False)
+        label, trajectory_prior, maps_info, init_traj, hidden_prior = self._preprocess_batch(trajectory_prior=trajectory_prior, maps_info=maps_info, hidden_prior=hidden_states, is_train=False)
         n_frames, batch_size, _, *_ = label.shape   
         
         final_predict = []
@@ -182,12 +185,13 @@ class DiffusionAugmentation(STR_Mixtral):
         self.diffusion.eval()
         # prediction
         for t in range(0, n_frames):
-            trajectory, z= self.diffusion.generate(
-                label[t], transition_info, trajectory_prior[t], maps_info
+            trajectory= self.diffusion.generate(
+                label[t], transition_info, trajectory_prior[t], maps_info, hidden_prior[t]
             ) # torch.Size([8, 1, 40])
-            transition_info = z
+            transition_info = trajectory
             final_predict.append(trajectory)
         final_predict = torch.stack(final_predict)
+        print("final_predict", final_predict[0,::10])
         
         # unnormalize after rearrange
         final_predict = rearrange(final_predict, "t b fs c ... -> b (t fs) c ...", fs=self.frame_stack)

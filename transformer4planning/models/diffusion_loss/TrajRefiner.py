@@ -81,7 +81,7 @@ class TrajectoryRefiner(nn.Module):
 
     # ========= inference  ============
     @torch.no_grad()
-    def generate(self, label, transition_info, trajectory_prior, maps_info):
+    def generate(self, label, transition_info, trajectory_prior, maps_info, hidden_states=None):
         """
         label: (bsz, 10, 4)
         transition_info: (bsz, 10, 4)
@@ -94,13 +94,13 @@ class TrajectoryRefiner(nn.Module):
         condition = {
                      "maps_info": maps_info,
                         "transition_info": transition_info,
-                        "trajectory_prior": trajectory_prior
+                        "trajectory_prior": hidden_states
                      }
-        trajectory, z = diffusion_model(condition,label)
+        trajectory= diffusion_model(condition, label, trajectory_prior)
 
-        return trajectory, z
+        return trajectory
     
-    def forward(self, label, transition_info, trajectory_prior, maps_info) -> Dict[str, torch.Tensor]:
+    def forward(self, label, transition_info, trajectory_prior, maps_info, hidden_states=None) -> Dict[str, torch.Tensor]:
         """
         label: (bsz, 10, 4)
         transition_info: (bsz, 10, 4)
@@ -113,15 +113,15 @@ class TrajectoryRefiner(nn.Module):
         condition = {
                      "maps_info": maps_info,
                         "transition_info": transition_info,
-                        "trajectory_prior": trajectory_prior
+                        "trajectory_prior": hidden_states
                      }
         traj_logits = torch.zeros_like(label)
         traj_loss = None
         
-        traj_loss, z = diffusion_model(condition, trajectory_label = label)
+        traj_loss= diffusion_model(condition, trajectory_label = label, trajectory_prior = trajectory_prior)
         
         traj_loss *= self.cfg.trajectory_loss_rescale
-        return traj_loss, traj_logits, z
+        return traj_loss, traj_logits
     
 class DiffusionWrapper(nn.Module):
     def __init__(
@@ -146,7 +146,7 @@ class DiffusionWrapper(nn.Module):
         # assert not hasattr(model, 'random_or_learned_sinusoidal_cond') or not model.random_or_learned_sinusoidal_cond
 
         self.model = model
-        self.z2x = nn.Linear(trajectory_dim, explicit_trajectory_dim)
+
 
         self.objective = objective
         self.timesteps = timesteps
@@ -325,7 +325,7 @@ class DiffusionWrapper(nn.Module):
         noise = torch.randn(shape, device = device)
         imgs = [noise]
         
-        prior["trajectory_prior"] = self.normalize(prior["trajectory_prior"])
+        # prior["trajectory_prior"] = self.normalize(prior["trajectory_prior"])
         prior["transition_info"] = self.normalize(prior["transition_info"])
 
 
@@ -382,16 +382,15 @@ class DiffusionWrapper(nn.Module):
         return ret
 
     @torch.inference_mode()
-    def sample(self, prior, trajectory_label, return_all_timesteps = False):
+    def sample(self, prior, trajectory_label, trajectory_prior, return_all_timesteps = False):
         shape = trajectory_label.shape
         sample_fn = self.p_sample_loop if not self.is_ddim_sampling else self.ddim_sample
-        trajectory_prior = prior["trajectory_prior"].clone()
-        z = sample_fn(shape, prior, return_all_timesteps = return_all_timesteps)
-        pred = self.z2x(z)
+        pred = sample_fn(shape, prior, return_all_timesteps = return_all_timesteps)
+
         if self.residual:
-            return pred + trajectory_prior, z
+            return pred + trajectory_prior
         else:
-            return pred, z
+            return pred
 
     @torch.inference_mode()
     def interpolate(self, x1, x2, t = None, lam = 0.5):
@@ -422,11 +421,11 @@ class DiffusionWrapper(nn.Module):
             extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
-    def p_losses(self, prior, x_start):
+    def p_losses(self, prior, x_start, trajectory_prior):
         
         b, to, c = x_start.shape
         x_start = self.normalize(x_start)
-        prior["trajectory_prior"] = self.normalize(prior["trajectory_prior"])
+        # prior["trajectory_prior"] = self.normalize(prior["trajectory_prior"])
         prior["transition_info"] = self.normalize(prior["transition_info"])
         t = torch.randint(0, self.timesteps, (b,), device = x_start.device).long()
 
@@ -441,8 +440,7 @@ class DiffusionWrapper(nn.Module):
 
         # predict and take gradient step
 
-        z = self.model(x, t, prior)
-        model_out = self.z2x(z)
+        model_out = self.model(x, t, prior)
 
         if self.objective == 'pred_noise':
             target = noise
@@ -458,10 +456,10 @@ class DiffusionWrapper(nn.Module):
         loss = reduce(loss, 'b ... -> b', 'mean')
 
         loss = loss * extract(self.loss_weight, t, loss.shape)
-        return loss.mean(), z
+        return loss.mean()
 
-    def forward(self, prior, trajectory_label, get_inter=False, **kwargs):
+    def forward(self, prior, trajectory_label, trajectory_prior, get_inter=False, **kwargs):
         if self.training:
-            return self.p_losses(prior, trajectory_label)
+            return self.p_losses(prior, trajectory_label, trajectory_prior)
         else:
-            return self.sample(prior, trajectory_label, return_all_timesteps=get_inter, **kwargs)
+            return self.sample(prior, trajectory_label, trajectory_prior, return_all_timesteps=get_inter, **kwargs)
