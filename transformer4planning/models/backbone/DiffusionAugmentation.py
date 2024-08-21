@@ -30,11 +30,13 @@ class DiffusionAugmentation(STR_Mixtral):
     def __init__(self, config:STRMixtralConfig):
         print("=================DiffusionAugmentation===================")
         ###########config the attribute#############
-        config.trajectory_dim=4
+        config.trajectory_dim=256
+        config.explicit_trajectory_dim = 4
         config.learnable_init_traj=True
         config.optimizer_beta = [0.9, 0.999]
         config.maps_dim = 256
         config.n_maps_token = 788
+        config.prior_dim = config.trajectory_dim
         self.cfg = config
         self.trajectory_dim = config.trajectory_dim
         self.frame_stack = config.frame_stack
@@ -108,10 +110,10 @@ class DiffusionAugmentation(STR_Mixtral):
         # init_traj: (b, 40)
         self.diffusion.train()
         for t in range(0, n_frames):
-            l, prediction= self.diffusion(
+            l, prediction, z= self.diffusion(
                 label[t], transition_info, trajectory_prior[t], maps_info
             ) # (b, 10, 4)
-            transition_info = prediction
+            transition_info = z
             loss.append(l)
             final_predict.append(prediction)
         # Notice the final_predict is not the final result, it is the intermediate result
@@ -180,11 +182,11 @@ class DiffusionAugmentation(STR_Mixtral):
         self.diffusion.eval()
         # prediction
         for t in range(0, n_frames):
-            prediction= self.diffusion.generate(
+            trajectory, z= self.diffusion.generate(
                 label[t], transition_info, trajectory_prior[t], maps_info
             ) # torch.Size([8, 1, 40])
-            transition_info = prediction
-            final_predict.append(prediction)
+            transition_info = z
+            final_predict.append(trajectory)
         final_predict = torch.stack(final_predict)
         
         # unnormalize after rearrange
