@@ -34,6 +34,7 @@ class DiffusionConfig(STRConfig):
     max_eval_samples: int = 100
     max_steps: int = 1000
     warmup_steps: int = 100
+    n_emb: int = 256
 
 
 class diffusion4trajectory(PreTrainedModel):
@@ -52,6 +53,9 @@ class diffusion4trajectory(PreTrainedModel):
             cond_dim=self.config.cond_dim,
             map_cond=self.config.map_cond,
             n_cond_layers=self.config.n_cond_layers,
+            n_layer=self.config.n_layer,
+            n_head=self.config.n_head,
+            n_emb=self.config.n_emb,
         )
         self.diffusion = DiffusionWrapper(
             model=transformer,
@@ -63,22 +67,32 @@ class diffusion4trajectory(PreTrainedModel):
     
     def preprocess(self, label):
         # set the first location as the anchor
-        first_row_first_three = label[:, 0, :3]
+        first_row_first_three = label[:, 0, :3].clone()
         first_row_first_three = first_row_first_three.unsqueeze(1)
         label[:, :, :3] -= first_row_first_three
+        self.anchor = first_row_first_three
         return label
+    
+    def postprocess(self, label):
+        trajectory = label.clone()
+        trajectory[:, :, :3] += self.anchor
+        return trajectory
     
     @torch.no_grad()
     def generate(self, **kwargs):
         self.eval()
+            
+        kwargs = kwargs.get("data", None)
         input_embeds, info_dict,maps = self.encoder(is_training=self.training, **kwargs)
         raw_trajectory_label = kwargs.get("raw_trajectory_label", None)
         raw_trajectory_label = self.preprocess(raw_trajectory_label)
-        
         # make a mask
-        mask = torch.ones(maps.shape[0], self.config.horizon, self.config.output_dim).to(maps.device)
-        mask[:,:5] = 0
-        mask[:,-20:] = 0 
+        if "mask" in kwargs:
+            mask = kwargs["mask"]
+        else:
+            mask = torch.ones(maps.shape[0], self.config.horizon, self.config.output_dim).to(maps.device)
+            mask[:,:5] = 0
+            mask[:,-20:] = 0 
 
         
         cond = maps
@@ -87,10 +101,38 @@ class diffusion4trajectory(PreTrainedModel):
         label = raw_trajectory_label * (1 - mask) + noise * mask
         
         trajectory = self.diffusion(prior=cond, trajectory_label=label, mask = mask)
+        trajectory = self.postprocess(trajectory)
         pred_dict = {
             "traj_logits": trajectory
         }
-        print("trajectory", trajectory[0,::10])
+        return pred_dict
+    
+    @torch.no_grad()
+    def SDEdit_sample(self, **kwargs):
+        self.eval()
+        kwargs = kwargs.get("data", None)
+        input_embeds, info_dict,maps = self.encoder(is_training=self.training, **kwargs)
+        raw_trajectory_label = kwargs.get("raw_trajectory_label", None)
+        raw_trajectory_label = self.preprocess(raw_trajectory_label)
+        # make a mask
+        if "mask" in kwargs:
+            mask = kwargs["mask"]
+        else:
+            mask = torch.ones(maps.shape[0], self.config.horizon, self.config.output_dim).to(maps.device)
+            mask[:,:5] = 0
+            mask[:,-20:] = 0 
+
+        
+        cond = maps
+        noise = torch.randn(cond.shape[0], self.config.horizon, self.config.output_dim).to(cond.device)
+        
+        label = raw_trajectory_label * (1 - mask) + noise * mask
+        
+        trajectory = self.diffusion.SDEdit_sample(prior=cond, trajectory_label=label, mask = mask, noise_level=60)
+        trajectory = self.postprocess(trajectory)
+        pred_dict = {
+            "traj_logits": trajectory
+        }
         return pred_dict
         
     def forward(self, **kwargs):
@@ -98,8 +140,14 @@ class diffusion4trajectory(PreTrainedModel):
         label = kwargs.get("raw_trajectory_label", None)
         label = self.preprocess(label)
         input_embeds, info_dict, maps = self.encoder(is_training=self.training, **kwargs)
+        
+        # make a mask
+        mask = torch.ones(maps.shape[0], self.config.horizon, self.config.output_dim).to(maps.device)
+        mask[:,:5] = 0
+        mask[:,-20:] = 0 
+        
         cond = maps
-        loss = self.diffusion(cond, label)
+        loss = self.diffusion(cond, label, mask = mask)
         pred_dict = {
             "traj_logits": label
         }

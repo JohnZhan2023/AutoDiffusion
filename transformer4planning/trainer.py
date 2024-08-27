@@ -109,7 +109,7 @@ def compute_metrics(prediction: EvalPrediction):
             eval_result[each_key] = np.mean(predictions[each_key])
         return eval_result
 
-    labels = prediction.label_ids  # nparray: sample_num, 80, 4
+    labels = prediction.label_ids  # nparray: sample_num, 80, 
     if labels.shape[1] == 10:
         # autoregressive with 8 seconds to predict
         # TODO: support dynamic intervals
@@ -394,60 +394,6 @@ def compute_metrics(prediction: EvalPrediction):
 
     return eval_result
 
-def compute_metrics_waymo(prediction: EvalPrediction):
-    from transformer4planning.utils.waymo_utils import tensor_to_str, waymo_evaluation
-    pred_dicts = prediction.predictions['prediction_generation']
-    type_idx_str = {
-            1: 'TYPE_VEHICLE',
-            2: 'TYPE_PEDESTRIAN',
-            3: 'TYPE_CYCLIST',
-        }
-    
-    pred_dict_list = []
-    for idx in range(len(pred_dicts["object_type"])):
-        single_pred_dict = {}
-        for key in pred_dicts.keys():
-            if key == "scenario_id":
-                single_pred_dict[key] = tensor_to_str(torch.from_numpy(pred_dicts[key][idx]).unsqueeze(0))[0]
-            elif key == "object_type":
-                single_pred_dict[key] = type_idx_str[pred_dicts[key][idx]]
-            elif key == "pred_scores":
-                single_pred_dict[key] = pred_dicts[key][idx].reshape(-1)
-            else:
-                single_pred_dict[key] = pred_dicts[key][idx]
-                
-        pred_dict_list.append(single_pred_dict)
-
-    result_dict, result_format_str = waymo_evaluation(pred_dicts=pred_dict_list, num_modes_for_eval=6, eval_second=8)
-    print(result_format_str)
-
-    metric_names = ['minADE', 'minFDE', 'MissRate', 'OverlapRate', 'mAP']
-    agent_type = ['VEHICLE', 'PEDESTRIAN', 'CYCLIST']
-
-    result = {}
-    for m in metric_names:  
-        record_avg = True 
-        for a in agent_type:
-            key = f"{m} - {a}"
-            if result_dict[key] == -1:
-                if record_avg: record_avg = False
-            else:
-                assert result_dict[key] > 0
-                result[key] = result_dict[key]
-
-        if m != "OverlapRate" and record_avg:
-            result[m] = result_dict[m]
-
-
-    loss_items = prediction.predictions['loss_items']
-    # check loss items are dictionary
-    if isinstance(loss_items, dict):
-        for each_key in loss_items:
-            # get average loss for each key
-            result[each_key] = np.mean(loss_items[each_key])
-
-    return result
-
 
 class CustomCallback(DefaultFlowCallback):
     """
@@ -608,6 +554,9 @@ class PlanningTrainer(Trainer):
         EVAL_LOG_SAVING_PATH = os.path.join(self.args.logging_dir, 'eval_log.pickle')
         if inputs is None:
             return None, None, None
+        if "raw_trajectory_label" in inputs.keys():
+            self.label_names = ["raw_trajectory_label"]
+            
         has_labels = False if len(self.label_names) == 0 else all(inputs.get(k) is not None for k in self.label_names)
         # loss_without_labels = True if len(self.label_names) == 0 and return_loss else False
         loss_without_labels = True

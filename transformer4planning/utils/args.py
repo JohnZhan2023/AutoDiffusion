@@ -152,6 +152,9 @@ class ModelArguments:
     ######## end of diffusion decoder args ########
 
     ######## begin of diffusion forcing args ########
+    offroad_loss: Optional[bool] = field(
+        default=False, metadata={"help": "Whether to use offroad loss in the diffusion forcing."}
+    )
     learnable_std_mean: Optional[bool] = field(
         default=False, metadata={"help": "Whether to learn the mean and std of the diffusion forcing."}
     )

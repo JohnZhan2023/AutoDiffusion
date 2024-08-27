@@ -22,3 +22,4 @@ visualization/
 # 忽略整个目录
 images/
 MoeProne/
+data/

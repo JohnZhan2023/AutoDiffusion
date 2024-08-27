@@ -9,9 +9,8 @@ from collections import namedtuple
 from random import random
 from tqdm.auto import tqdm
 from torch.cuda.amp import autocast
+import sys
 
-
-from transformer4planning.models.diffusion_loss.transformer import Transformer
 from transformer4planning.models.utils import *
 
 # constants
@@ -50,10 +49,10 @@ def has_int_squareroot(num):
 def normalize(x):
     y = torch.zeros_like(x)
     # mean(x[...,0]) = 9.517, mean(sqrt(x[...,0]**2))=9.517
-    y[..., 0] += (x[..., 0] / 10)
+    y[..., 0] += (x[..., 0] / 25)
     y[..., 0] -= 1.0
     # mean(x[..., 1]) = -0.737, mean(sqrt(x[..., 1]**2))=0.783
-    y[..., 1] += (x[..., 1] / 10)
+    y[..., 1] += (x[..., 1] / 25)
     if x.shape[-1]==2:
         return y
     # mean(x[..., 2]) = 0, mean(sqrt(x[..., 2]**2)) = 0
@@ -61,16 +60,23 @@ def normalize(x):
     # mean(x[..., 3]) = 0.086, mean(sqrt(x[..., 3]**2))=0.090
     y[..., 3] += x[..., 3] 
     y[..., 3] += 0
+    y[..., 4] = x[..., 4]
+    y[..., 5] = x[..., 5]
+    y[..., 6] = x[..., 6]
     return y
 
 def denormalize(y):
     x = torch.zeros_like(y)
-    x[..., 0] = (y[..., 0] + 1.0) * 10
-    x[..., 1] = (y[..., 1]) * 10
+    x[..., 0] = (y[..., 0] + 1.0) * 25
+    x[..., 1] = (y[..., 1]) * 25
     if y.shape[-1]==2:
         return x
-    x[..., 2] = 0
+    x[..., 2] = y[..., 2]
     x[..., 3] = y[..., 3] 
+    x[..., 4] = y[..., 4]
+    x[..., 5] = y[..., 5]
+    x[..., 6] = y[..., 6]
+    
     return x
 
 
@@ -336,7 +342,8 @@ class DiffusionWrapper(nn.Module):
 
     @torch.inference_mode()
     def sample(self, prior, trajectory_label, return_all_timesteps = False, mask=None):
-        trajectory_label = self.normalize(trajectory_label)*(1-mask) + mask*trajectory_label
+        noise = torch.randn_like(trajectory_label)
+        trajectory_label = self.normalize(trajectory_label)*(1-mask) + mask*noise
         sample_fn = self.p_sample_loop if not self.is_ddim_sampling else self.ddim_sample
         return sample_fn(trajectory_label, prior, return_all_timesteps = return_all_timesteps, mask=mask)
 
@@ -415,3 +422,15 @@ class DiffusionWrapper(nn.Module):
             return self.p_losses(prior, trajectory_label, mask=mask)
         else:
             return self.sample(prior, trajectory_label, return_all_timesteps=get_inter, mask=mask, **kwargs)
+        
+    def SDEdit_sample(self, prior, trajectory_label, get_inter=False, mask=None, sample_step = 10, noise_level = 3, **kwargs):
+        # expand the noise_level to the tensor shape
+        noise_level = torch.tensor(noise_level).expand(trajectory_label.shape[0]).to(trajectory_label.device)
+        for it in range (sample_step):
+            e = torch.randn_like(trajectory_label)
+            
+            noisy_label = self.q_sample(x_start = trajectory_label, t = noise_level, noise = e)
+            noisy_label = trajectory_label * (1 - mask) + mask * noisy_label
+            trajectory_label = self.sample(prior, noisy_label, return_all_timesteps=get_inter, mask=mask, **kwargs)
+        return trajectory_label
+            

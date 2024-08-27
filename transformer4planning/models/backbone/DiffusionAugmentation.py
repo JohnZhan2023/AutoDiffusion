@@ -42,6 +42,7 @@ class DiffusionAugmentation(STR_Mixtral):
         self.map_cond = config.map_cond
         self.config = config
         self.residual = config.residual
+        self.offroad_loss = config.offroad_loss
         # init the pretrained model
         
         # Initialize the parent class with the given configuration
@@ -120,12 +121,10 @@ class DiffusionAugmentation(STR_Mixtral):
         
         loss = torch.stack(loss)
         loss = rearrange(loss, "t b fs c -> b (t fs) c", fs=self.frame_stack)
-        
-        from transformer4planning.models.diffusion_loss.diffusion_loss import offroad_loss
-        loss = offroad_loss(final_predict, trajectory_label, loss, **kwargs)
+        if self.offroad_loss:
+            from transformer4planning.models.diffusion_loss.diffusion_loss import offroad_loss
+            loss = offroad_loss(final_predict, trajectory_label, loss, **kwargs)
 
-        
-        
         x_loss = loss.mean()
 
         pred_dict = {

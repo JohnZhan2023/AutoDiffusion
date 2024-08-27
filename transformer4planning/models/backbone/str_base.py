@@ -1051,6 +1051,7 @@ def build_models(model_args):
             config_p.beta_schedule = model_args.beta_schedule
             config_p.diffusion_timesteps = model_args.diffusion_timesteps
             config_p.normalize = model_args.normalize
+            config_p.offroad_loss = model_args.offroad_loss
             ModelCls = DiffusionAugmentation
 
         

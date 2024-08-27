@@ -2,10 +2,25 @@ from typing import Union, Optional, Tuple
 import logging
 import torch
 import torch.nn as nn
-from transformer4planning.models.diffusion_loss.positional_embedding import SinusoidalPosEmb
+import torch.nn.functional as F
+import math
 # Credit to Cheng Chi's implementation of TransformerForDiffusion (https://github.com/real-stanford/diffusion_policy/tree/main)
 
 logger = logging.getLogger(__name__)
+
+class SinusoidalPosEmb(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        device = x.device
+        half_dim = self.dim // 2
+        emb = math.log(10000) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
+        emb = x[:, None] * emb[None, :]
+        emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+        return emb
 
 class Transformer(nn.Module):
     def __init__(self,
@@ -16,15 +31,15 @@ class Transformer(nn.Module):
             n_cond_steps: int = None,
             cond_dim: int = 0,
             
-            n_layer: int = 4,
-            n_head: int = 8,
-            n_emb: int = 32,
+            n_layer: int = 8,
+            n_head: int = 16,
+            n_emb: int = 64,
             p_drop_emb: float = 0.1,
             p_drop_attn: float = 0.1,
             causal_attn: bool=False,
             time_as_cond: bool=True,
             obs_as_cond: bool=False,
-            n_cond_layers: int = 2,
+            n_cond_layers: int = 4,
             map_cond: bool=True
         ) -> None:
         super().__init__()

@@ -19,15 +19,15 @@ class Transformer(nn.Module):
             n_prior_steps: int = 0,
             prior_dim: int = 0,
             
-            n_layer: int = 4,
-            n_head: int = 8,
-            n_emb: int = 32,
+            n_layer: int = 8, # 4
+            n_head: int = 16, # 8
+            n_emb: int = 64, # 32
             p_drop_emb: float = 0.1,
             p_drop_attn: float = 0.1,
             causal_attn: bool=False,
             time_as_cond: bool=True,
             obs_as_cond: bool=False,
-            n_cond_layers: int = 2,
+            n_cond_layers: int = 4, # 4
             map_cond: bool=True
         ) -> None:
         super().__init__()

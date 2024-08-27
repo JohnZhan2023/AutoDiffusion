@@ -71,5 +71,6 @@ def offroad_loss(traj_logits,
                     off_road_mask[i, :, :] = 0
                     break
         # torch.set_printoptions(profile="full")
+        # print("off_road_mask", off_road_mask[0, ::10])
         traj_loss[:,:,:2] *= (1 + off_road_mask * 100)
         return traj_loss

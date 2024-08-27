@@ -46,26 +46,30 @@ def main():
                 map_dic = pickle.load(f)
             map_name = each_map.split('.')[0]
             all_maps_dic[map_name] = map_dic
-            
-    config = DiffusionConfig()
-    config.update_by_model_args(model_args)
-    config.input_dim = 4
-    config.output_dim = 4
-    config.horizon = 100
-    config.n_cond_steps = 788
-    config.cond_dim = 256
-    config.map_cond = True
-    config.n_cond_layers = 2
-    config.timesteps = 1000
-    config.objective = "pred_x0"
-    config.beta_schedule = "sigmoid"
-    config.use_proposal = False
-    config.n_embd = 256
-    config.n_head = 8
-    config.use_key_points = "specified_backward"
-    
+    if training_args.model_pretrain_name_or_path is not None:
+        config = DiffusionConfig.from_pretrained(training_args.model_pretrain_name_or_path)
+        model = diffusion4trajectory(training_args.model_pretrain_name_or_path, config)
+    else:
+        config = DiffusionConfig()
+        config.update_by_model_args(model_args)
+        config.input_dim = 7
+        config.output_dim = 7
+        config.horizon = 100
+        config.n_cond_steps = 788
+        config.cond_dim = 256
+        config.map_cond = True
+        config.n_cond_layers = 4
+        config.timesteps = 100
+        config.objective = "pred_x0"
+        config.beta_schedule = "sigmoid"
+        config.use_proposal = False
+        config.n_embd = 256
+        config.n_head = 8
+        config.n_layer = 4
+        config.use_key_points = "specified_backward"
+        
 
-    model = diffusion4trajectory(config)
+        model = diffusion4trajectory(config)
     
     num_samples = min(len(val_dataset), max_eval_samples)
     val_dataset = val_dataset.select(range(num_samples))
@@ -78,7 +82,7 @@ def main():
     trainer = PlanningTrainer(
         model=model,  # the instantiated 🤗 Transformers model to be trained
         args=training_args,  # training arguments, defined above
-        train_dataset=train_dataset,
+        train_dataset=train_dataset if training_args.do_train else None,  # training dataset
         eval_dataset=val_dataset ,
         callbacks=[CustomCallback,],
         data_collator=collate_fn,
